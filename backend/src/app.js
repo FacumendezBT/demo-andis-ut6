@@ -2,7 +2,7 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 
-const url = null
+let url = null
 
 class pixel {
     constructor(r, g, b) {
@@ -68,8 +68,8 @@ function gancho_discord() {
     }
 }
 
-function add_url(url) {
-    url = url
+function add_url(new_url) {
+    url = new_url
 }
 
 /**
