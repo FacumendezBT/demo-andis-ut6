@@ -330,7 +330,7 @@
                 </div>
                 
                 <div class="webhook-section">
-                    <input type="url" id="webhookInput" placeholder="https://webhook.site/your-url" />
+                    <input type="url" id="webhookInput" />
                     <button id="webhookButton">🔗 Agregar Webhook</button>
                 </div>
             </div>
@@ -424,7 +424,7 @@
             }
             
             const body = { url: webhookUrl };
-            fetch('/webhook', {
+            fetch('/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
