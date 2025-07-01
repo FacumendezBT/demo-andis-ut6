@@ -554,11 +554,8 @@
         });
 
         submitButton.addEventListener('click', function() {
-            console.log("click");
             const inputValue = inputField.value;
-            console.log(inputValue);
             const body = {url : inputValue};
-            console.log(body);
             fetch("", {
                 method: "POST",
                 headers: {
