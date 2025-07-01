@@ -6,27 +6,23 @@ let url = null
 
 class pixel {
     constructor(r, g, b) {
-        this.r = Math.max(0, Math.min(255, parseInt(r))),
-            this.g = Math.max(0, Math.min(255, parseInt(g))),
-            this.b = Math.max(0, Math.min(255, parseInt(b)))
+        this.r = parseInt(r) % 256,
+        this.g = parseInt(g) % 256,
+        this.b = parseInt(b) % 256
     }
 }
 
 const CANVAS_SIZE = 800;
 const canvas = new Array(CANVAS_SIZE * CANVAS_SIZE).fill(new pixel(255, 255, 255));
 
-// Paint AI events
+// Paint events
 const PAINT_EVENTS = {
-    DRAW_PIXEL: 'draw_pixel',
     DRAW_PIXELS_BATCH: 'draw_pixels_batch',
     CANVAS_UPDATE: 'canvas_update',
     GET_CANVAS: 'get_canvas',
     CLEAR_CANVAS: 'clear_canvas'
 };
 
-/**
- * Process multiple pixels at once for better performance
- */
 function canvas_draw_batch(pixelsData) {
     const validPixels = [];
     
@@ -37,7 +33,7 @@ function canvas_draw_batch(pixelsData) {
             data.x < 0 || data.x >= CANVAS_SIZE ||
             data.y < 0 || data.y >= CANVAS_SIZE
         ) {
-            continue; // Skip invalid pixels
+            continue;
         }
         
         canvas[data.x + data.y * CANVAS_SIZE] = new pixel(data.pixel.r, data.pixel.g, data.pixel.b);
@@ -47,32 +43,10 @@ function canvas_draw_batch(pixelsData) {
     return validPixels;
 }
 
-/**
- * Clear the entire canvas
- */
 function canvas_clear() {
     for (let i = 0; i < canvas.length; i++) {
         canvas[i] = new pixel(255, 255, 255);
     }
-}
-/**
- * Process single pixel (kept for backwards compatibility)
- */
-function canvas_draw(data) {
-    if (
-        !Number.isInteger(data.x) ||
-        !Number.isInteger(data.y)
-    )
-        return false;
-
-    if (
-        data.x < 0 || data.x >= CANVAS_SIZE ||
-        data.y < 0 || data.y >= CANVAS_SIZE
-    )
-        return false;
-
-    canvas[data.x + data.y * CANVAS_SIZE] = new pixel(data.pixel.r, data.pixel.g, data.pixel.b);
-    return true;
 }
 
 function gancho_discord() {
@@ -112,39 +86,12 @@ function handleConnection(socket, io) {
 
     gancho_discord();
 
-    // Send current canvas state to newly connected client
     socket.emit(PAINT_EVENTS.CANVAS_UPDATE, {
         canvas: canvas,
         width: CANVAS_SIZE,
         height: CANVAS_SIZE
     });
 
-    // Handle pixel drawing events (single pixel - backwards compatibility)
-    socket.on(PAINT_EVENTS.DRAW_PIXEL, (data) => {
-        try {
-            console.log(`Received draw pixel from ${socket.id}:`, data);
-
-            // Validate and draw pixel
-            if (canvas_draw(data)) {
-                // Broadcast the pixel update to all connected clients
-                io.emit(PAINT_EVENTS.CANVAS_UPDATE, {
-                    x: data.x,
-                    y: data.y,
-                    pixel: data.pixel,
-                    timestamp: new Date().toISOString()
-                });
-
-                console.log(`Broadcasted pixel update: (${data.x}, ${data.y})`);
-            } else {
-                socket.emit('error', { message: 'Invalid pixel coordinates' });
-            }
-        } catch (error) {
-            console.error(`Error processing pixel draw from ${socket.id}:`, error);
-            socket.emit('error', { message: 'Failed to process pixel draw' });
-        }
-    });
-
-    // Handle batch pixel drawing events (optimized)
     socket.on(PAINT_EVENTS.DRAW_PIXELS_BATCH, (pixelsData) => {
         try {
             console.log(`Received pixel batch from ${socket.id}: ${pixelsData.length} pixels`);
@@ -271,9 +218,4 @@ async function initPaint() {
     }
 }
 
-// module.exports = initPaint;
-
-// Start the service if this file is run directly
-// if (require.main === module) {
-    initPaint();
-// }
+initPaint();
