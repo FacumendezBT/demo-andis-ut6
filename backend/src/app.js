@@ -1,13 +1,14 @@
-require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 
+const url = null
+
 class pixel {
     constructor(r, g, b) {
         this.r = Math.max(0, Math.min(255, parseInt(r))),
-        this.g = Math.max(0, Math.min(255, parseInt(g))),
-        this.b = Math.max(0, Math.min(255, parseInt(b)))
+            this.g = Math.max(0, Math.min(255, parseInt(g))),
+            this.b = Math.max(0, Math.min(255, parseInt(b)))
     }
 }
 
@@ -50,6 +51,27 @@ function canvas_draw(data) {
     return true;
 }
 
+function gancho_discord() {
+    if (url) {
+        const noti = {
+            content: "Nuevo usuario!🥳🥳"
+        };
+
+        fetch(url, {
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(noti)
+        });
+        console.log("Notificado por discord.")
+    }
+}
+
+function add_url(url) {
+    url = url
+}
+
 /**
  * Handle new socket connecti {
  *   x: 0,
@@ -63,7 +85,9 @@ function canvas_draw(data) {
  */
 function handleConnection(socket, io) {
     console.log(`Client connected: ${socket.id}`);
-    
+
+    gancho_discord();
+
     // Send current canvas state to newly connected client
     socket.emit(PAINT_EVENTS.CANVAS_UPDATE, {
         canvas: canvas,
@@ -75,7 +99,7 @@ function handleConnection(socket, io) {
     socket.on(PAINT_EVENTS.DRAW_PIXEL, (data) => {
         try {
             console.log(`Received draw pixel from ${socket.id}:`, data);
-            
+
             // Validate and draw pixel
             if (canvas_draw(data)) {
                 // Broadcast the pixel update to all connected clients
@@ -85,7 +109,7 @@ function handleConnection(socket, io) {
                     pixel: data.pixel,
                     timestamp: new Date().toISOString()
                 });
-                
+
                 console.log(`Broadcasted pixel update: (${data.x}, ${data.y})`);
             } else {
                 socket.emit('error', { message: 'Invalid pixel coordinates' });
@@ -114,9 +138,9 @@ function handleConnection(socket, io) {
     });
 }
 
-async function initPaintAI() {
+async function initPaint() {
     try {
-        console.log('Initializing the best Paint AI WebSocket Service...');
+        console.log('Initializing the best Paint WebSocket Service...');
 
         const app = express();
         const server = http.createServer(app);
@@ -129,7 +153,10 @@ async function initPaintAI() {
 
         // Serve static files for testing
         app.use(express.static('public'));
-        
+
+        // leer jsons
+        app.use(express.json());
+
         // Basic route for testing
         app.get('/', (req, res) => {
             res.sendFile(__dirname + '/../public/index.html');
@@ -140,15 +167,21 @@ async function initPaintAI() {
             handleConnection(socket, io);
         });
 
-        const PORT = process.env.PORT || 3000;
-        
+        app.post("/", (req, res) => {
+            const { url } = req.body
+            add_url(url)
+            console.log(`Hook ${url}`)
+        });
+
+        const PORT = 3000;
+
         server
             .listen(PORT)
             .on('listening', () => {
-                console.log(`Paint AI service running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
-                console.log('Paint AI service started successfully', {
+                console.log(`Paint service running on port ${PORT} in development mode`);
+                console.log('Paint service started successfully', {
                     port: PORT,
-                    environment: process.env.NODE_ENV || 'development',
+                    environment: 'development',
                     timestamp: new Date().toISOString(),
                 });
             })
@@ -161,16 +194,16 @@ async function initPaintAI() {
 
         return server;
     } catch (error) {
-        console.error(`Failed to initialize Paint AI Service: ${error.message}`, {
+        console.error(`Failed to initialize Paint Service: ${error.message}`, {
             stack: error.stack,
         });
         process.exit(1);
     }
 }
 
-module.exports = initPaintAI;
+// module.exports = initPaint;
 
 // Start the service if this file is run directly
-if (require.main === module) {
-    initPaintAI();
-}
+// if (require.main === module) {
+    initPaint();
+// }
