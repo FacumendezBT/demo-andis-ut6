@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuestro Paint AI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        h1 {
+            color: white;
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            font-weight: 300;
+        }
+        
+        .app-container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .canvas-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        canvas {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            cursor: crosshair;
+            background-color: white;
+        }
+        
+        .status {
+            padding: 15px 20px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-align: center;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+        }
+        
+        .connected {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .toolbar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-width: 200px;
+        }
+        
+        .tool-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .tool-section h3 {
+            margin-bottom: 15px;
+            color: #495057;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+        
+        .tool-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .tool-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.85rem;
+            font-weight: 500;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .tool-btn:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+        
+        .tool-btn.active {
+            background: #007bff;
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+        }
+        
+        .color-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        #colorPicker {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        
+        .brush-preview {
+            width: 30px;
+            height: 30px;
+            border: 2px solid #dee2e6;
+            border-radius: 50%;
+            background-color: #000;
+        }
+        
+        .size-section {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        #brushSize {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #dee2e6;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        #brushSize::-webkit-slider-thumb {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #007bff;
+            cursor: pointer;
+        }
+        
+        .size-display {
+            text-align: center;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .action-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .action-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+        }
+        
+        .action-btn:hover {
+            background: #5a6268;
+            transform: translateY(-1px);
+        }
+        
+        .action-btn.danger {
+            background: #e74c3c;
+        }
+        
+        .action-btn.danger:hover {
+            background: #c0392b;
+        }
+        
+        .action-btn.secondary {
+            background: #6c757d;
+        }
+        
+        .action-btn.secondary:hover {
+            background: #5a6268;
+        }
+        
+        @media (max-width: 768px) {
+            .app-container {
+                flex-direction: column;
+                width: 100%;
+            }
+            
+            .toolbar {
+                width: 100%;
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+            
+            .tool-section {
+                flex: 1;
+                min-width: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="canvas-container">
+            <canvas id="paintCanvas" width="800" height="800"></canvas>
+        </div>
+        
+        <div class="toolbar">
+            <div id="status" class="status disconnected">
+                ❌ Desconectado
+            </div>
+            
+            <div class="tool-section">
+                <h3>Herramientas</h3>
+                <div class="tool-buttons">
+                    <button class="tool-btn active" data-tool="brush" onclick="setTool('brush')">
+                        🖌️<span>Pincelito</span>
+                    </button>
+                    <button class="tool-btn" data-tool="eraser" onclick="setTool('eraser')">
+                        🧽<span>Borrador</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="tool-section">
+                <h3>Color</h3>
+                <div class="color-section">
+                    <input type="color" id="colorPicker" value="#000000">
+                    <div class="brush-preview" id="brushPreview"></div>
+                </div>
+            </div>
+            
+            <div class="tool-section">
+                <h3>Tamaño del Pincelito</h3>
+                <div class="size-section">
+                    <input type="range" id="brushSize" min="1" max="20" value="1">
+                    <div class="size-display">Tamaño: <span id="brushSizeValue">1</span></div>
+                </div>
+            </div>
+            
+            <div class="tool-section">
+                <h3>Acciones</h3>
+                <div class="action-buttons">
+                    <button class="action-btn" onclick="getCanvas()">🔄 Refrescar</button>
+                    <button class="action-btn danger" onclick="clearCanvas()">🗑️ Borrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const canvas = document.getElementById('paintCanvas');
+        const ctx = canvas.getContext('2d');
+        const colorPicker = document.getElementById('colorPicker');
+        const brushSize = document.getElementById('brushSize');
+        const brushSizeValue = document.getElementById('brushSizeValue');
+        const brushPreview = document.getElementById('brushPreview');
+        const status = document.getElementById('status');
+        
+        // Scale factor to convert canvas pixels to grid coordinates
+        const GRID_SIZE = 800;
+        const PIXEL_SIZE = canvas.width / GRID_SIZE;
+        
+        // Drawing state
+        let currentTool = 'brush';
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+        
+        // History for undo/redo
+        let history = [];
+        let historyStep = -1;
+        const MAX_HISTORY = 50;
+        
+        // Connect to Paint AI server
+        const socket = io();
+        
+        // Tool management
+        function setTool(tool) {
+            currentTool = tool;
+            
+            // Update active button
+            document.querySelectorAll('.tool-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-tool="${tool}"]`).classList.add('active');
+            
+            // Update cursor
+            updateCanvasCursor();
+        }
+        
+        function updateCanvasCursor() {
+            switch(currentTool) {
+                case 'brush':
+                    canvas.style.cursor = 'crosshair';
+                    break;
+                case 'eraser':
+                    canvas.style.cursor = 'grab';
+                    break;
+                default:
+                    canvas.style.cursor = 'crosshair';
+            }
+        }
+        
+        // Brush size management
+        brushSize.addEventListener('input', (e) => {
+            brushSizeValue.textContent = e.target.value;
+            updateBrushPreview();
+        });
+        
+        colorPicker.addEventListener('change', updateBrushPreview);
+        
+        function updateBrushPreview() {
+            const size = Math.min(parseInt(brushSize.value) * 2, 30);
+            brushPreview.style.width = size + 'px';
+            brushPreview.style.height = size + 'px';
+            brushPreview.style.backgroundColor = colorPicker.value;
+        }
+        
+        function saveState() {
+            historyStep++;
+            if (historyStep < history.length) {
+                history.length = historyStep;
+            }
+            history.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+            if (history.length > MAX_HISTORY) {
+                history.shift();
+                historyStep--;
+            }
+        }
+        
+        function getCanvasCoordinates(event) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: Math.floor((event.clientX - rect.left) / PIXEL_SIZE),
+                y: Math.floor((event.clientY - rect.top) / PIXEL_SIZE)
+            };
+        }
+        
+        function drawBrush(x, y, color, size = 1) {
+            const radius = Math.floor(size / 2);
+            for (let dx = -radius; dx <= radius; dx++) {
+                for (let dy = -radius; dy <= radius; dy++) {
+                    if (dx * dx + dy * dy <= radius * radius) {
+                        const pixelX = x + dx;
+                        const pixelY = y + dy;
+                        if (pixelX >= 0 && pixelX < GRID_SIZE && pixelY >= 0 && pixelY < GRID_SIZE) {
+                            socket.emit('draw_pixel', {
+                                x: pixelX,
+                                y: pixelY,
+                                pixel: color
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        
+        function getPixelColor(x, y) {
+            if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE) {
+                const imageData = ctx.getImageData(x * PIXEL_SIZE, y * PIXEL_SIZE, 1, 1);
+                const data = imageData.data;
+                return {
+                    r: data[0],
+                    g: data[1],
+                    b: data[2]
+                };
+            }
+            return { r: 255, g: 255, b: 255 };
+        }
+        
+        function floodFill(startX, startY, newColor) {
+            const targetColor = getPixelColor(startX, startY);
+            
+            // Don't fill if colors are the same
+            if (targetColor.r === newColor.r && targetColor.g === newColor.g && targetColor.b === newColor.b) {
+                return;
+            }
+            
+            const stack = [{x: startX, y: startY}];
+            const visited = new Set();
+            
+            while (stack.length > 0) {
+                const {x, y} = stack.pop();
+                const key = `${x},${y}`;
+                
+                if (visited.has(key) || x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) {
+                    continue;
+                }
+                
+                const currentColor = getPixelColor(x, y);
+                if (currentColor.r !== targetColor.r || currentColor.g !== targetColor.g || currentColor.b !== targetColor.b) {
+                    continue;
+                }
+                
+                visited.add(key);
+                
+                socket.emit('draw_pixel', {
+                    x: x,
+                    y: y,
+                    pixel: newColor
+                });
+                
+                // Add adjacent pixels to stack
+                stack.push({x: x + 1, y: y});
+                stack.push({x: x - 1, y: y});
+                stack.push({x: x, y: y + 1});
+                stack.push({x: x, y: y - 1});
+            }
+        }
+        
+        function drawLine(x0, y0, x1, y1, color, size) {
+            const dx = Math.abs(x1 - x0);
+            const dy = Math.abs(y1 - y0);
+            const sx = (x0 < x1) ? 1 : -1;
+            const sy = (y0 < y1) ? 1 : -1;
+            let err = dx - dy;
+            
+            let x = x0;
+            let y = y0;
+            
+            while (true) {
+                drawBrush(x, y, color, size);
+                
+                if (x === x1 && y === y1) break;
+                
+                const e2 = 2 * err;
+                if (e2 > -dy) {
+                    err -= dy;
+                    x += sx;
+                }
+                if (e2 < dx) {
+                    err += dx;
+                    y += sy;
+                }
+            }
+        }
+        
+        // Connection status
+        socket.on('connect', () => {
+            status.textContent = '✅ Conectado';
+            status.className = 'status connected';
+        });
+        
+        socket.on('disconnect', () => {
+            status.textContent = '❌ Desconectado';
+            status.className = 'status disconnected';
+        });
+        
+        // Handle canvas updates
+        socket.on('canvas_update', (data) => {
+            if (data.canvas) {
+                // Full canvas update
+                renderFullCanvas(data.canvas);
+            } else if (data.x !== undefined && data.y !== undefined) {
+                // Single pixel update
+                drawPixel(data.x, data.y, data.pixel);
+            }
+        });
+        
+        // Handle errors
+        socket.on('error', (error) => {
+            console.error('Socket error:', error);
+            alert('Error: ' + error.message);
+        });
+        
+        
+        // Canvas event handlers
+        canvas.addEventListener('mousedown', (event) => {
+            const coords = getCanvasCoordinates(event);
+            isDrawing = true;
+            lastX = coords.x;
+            lastY = coords.y;
+            saveState();
+            handleDraw(coords.x, coords.y);
+        });
+        
+        canvas.addEventListener('mousemove', (event) => {
+            if (!isDrawing) return;
+            
+            const coords = getCanvasCoordinates(event);
+            
+            if (currentTool === 'brush' || currentTool === 'eraser') {
+                // Draw line from last position to current position for smooth drawing
+                const color = currentTool === 'eraser' ? 
+                    { r: 255, g: 255, b: 255 } : 
+                    hexToRgb(colorPicker.value);
+                
+                drawLine(lastX, lastY, coords.x, coords.y, color, parseInt(brushSize.value));
+                lastX = coords.x;
+                lastY = coords.y;
+            }
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            isDrawing = false;
+        });
+        
+        canvas.addEventListener('mouseleave', () => {
+            isDrawing = false;
+        });
+        
+        // Single click/tap handler
+        function handleDraw(x, y) {
+            const color = currentTool === 'eraser' ? 
+                { r: 255, g: 255, b: 255 } : 
+                hexToRgb(colorPicker.value);
+            
+            drawBrush(x, y, color, parseInt(brushSize.value));
+        }
+        
+        // Touch events for mobile support
+        canvas.addEventListener('touchstart', (event) => {
+            event.preventDefault();
+            const touch = event.touches[0];
+            const mouseEvent = new MouseEvent('mousedown', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        });
+        
+        canvas.addEventListener('touchmove', (event) => {
+            event.preventDefault();
+            const touch = event.touches[0];
+            const mouseEvent = new MouseEvent('mousemove', {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            canvas.dispatchEvent(mouseEvent);
+        });
+        
+        canvas.addEventListener('touchend', (event) => {
+            event.preventDefault();
+            const mouseEvent = new MouseEvent('mouseup', {});
+            canvas.dispatchEvent(mouseEvent);
+        });
+        
+        // Helper functions
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : {r: 0, g: 0, b: 0};
+        }
+        
+        function drawPixel(x, y, pixel) {
+            ctx.fillStyle = `rgb(${pixel.r}, ${pixel.g}, ${pixel.b})`;
+            ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+        }
+        
+        function renderFullCanvas(canvasData) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            for (let i = 0; i < canvasData.length; i++) {
+                const x = i % GRID_SIZE;
+                const y = Math.floor(i / GRID_SIZE);
+                const pixel = canvasData[i];
+                
+                drawPixel(x, y, pixel);
+            }
+        }
+        
+        function clearCanvas() {
+            if (confirm('¿Está seguro que desea borrar todo el lienzo?')) {
+                saveState();
+                
+                // Clear locally first
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Send clear events for all pixels
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    for (let y = 0; y < GRID_SIZE; y++) {
+                        socket.emit('draw_pixel', {
+                            x: x,
+                            y: y,
+                            pixel: { r: 255, g: 255, b: 255 }
+                        });
+                    }
+                }
+            }
+        }
+        
+        function getCanvas() {
+            socket.emit('get_canvas');
+        }
+        
+        // Initialize
+        updateBrushPreview();
+        updateCanvasCursor();
+        
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        saveState();
+    </script>
+</body>
+</html>
