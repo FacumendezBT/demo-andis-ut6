@@ -549,11 +549,13 @@
                 // Batch pixel update
                 data.pixels.forEach(pixelData => {
                     drawPixel(pixelData.x, pixelData.y, pixelData.pixel);
-                });
-            } else if (data.x !== undefined && data.y !== undefined) {
-                // Single pixel update (for backwards compatibility)
-                drawPixel(data.x, data.y, data.pixel);
-            }
+            });
+        });
+
+        // no puedo creer que faltó esto
+        socket.on('canvas_clear', () => {
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
         });
         
         // Handle errors
@@ -639,7 +641,7 @@
                 // Clear locally first
                 ctx.fillStyle = 'white';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
+
                 // Send clear command instead of individual pixels
                 socket.emit('clear_canvas');
             }

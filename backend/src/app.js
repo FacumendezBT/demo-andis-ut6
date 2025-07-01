@@ -123,10 +123,7 @@ function handleConnection(socket, io) {
             canvas_clear();
             
             // Broadcast the clear to all connected clients
-            io.emit(PAINT_EVENTS.CANVAS_UPDATE, {
-                canvas: canvas,
-                width: CANVAS_SIZE,
-                height: CANVAS_SIZE,
+            io.emit(PAINT_EVENTS.CANVAS_CLEAR, {
                 timestamp: new Date().toISOString()
             });
             
