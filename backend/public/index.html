@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nuestro Paint AI</title>
+    <title>Nuestro Paint</title>
     <style>
         * {
             margin: 0;
@@ -284,6 +284,10 @@
                     <button class="action-btn" onclick="getCanvas()">🔄 Refrescar</button>
                     <button class="action-btn danger" onclick="clearCanvas()">🗑️ Borrar</button>
                 </div>
+               <div id="container">
+                    <input type="text" id="input" placeholder="Type something here..." />
+                    <button id="boton">Add hook</button>
+                </div>
             </div>
         </div>
     </div>
@@ -297,6 +301,10 @@
         const brushSizeValue = document.getElementById('brushSizeValue');
         const brushPreview = document.getElementById('brushPreview');
         const status = document.getElementById('status');
+
+        // para el texto
+        const inputField = document.getElementById('input');
+        const submitButton = document.getElementById('boton');
         
         // Scale factor to convert canvas pixels to grid coordinates
         const GRID_SIZE = 800;
@@ -313,7 +321,7 @@
         let historyStep = -1;
         const MAX_HISTORY = 50;
         
-        // Connect to Paint AI server
+        // Connect to Paint server
         const socket = io();
         
         // Tool management
@@ -541,6 +549,25 @@
             isDrawing = false;
         });
         
+        inputField.addEventListener('input', (event) => {
+            inputField.value = event.target.value
+        });
+
+        submitButton.addEventListener('click', function() {
+            console.log("click");
+            const inputValue = inputField.value;
+            console.log(inputValue);
+            const body = {url : inputValue};
+            console.log(body);
+            fetch("", {
+                method: "POST",
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body)
+            });
+        });
+
         // Single click/tap handler
         function handleDraw(x, y) {
             const color = currentTool === 'eraser' ? 
