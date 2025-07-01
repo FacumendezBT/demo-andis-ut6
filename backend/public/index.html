@@ -163,6 +163,7 @@
             border-radius: 3px;
             background: #dee2e6;
             outline: none;
+            appearance: none;
             -webkit-appearance: none;
         }
         
@@ -181,6 +182,49 @@
             font-weight: 600;
             color: #495057;
         }
+        
+        .webhook-section {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        #webhookInput {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+        
+        #webhookInput:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        }
+        
+        #webhookButton {
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        
+        #webhookButton:hover {
+            background: #218838;
+            transform: translateY(-1px);
+        }
+        
+
+        
+
         
         .action-buttons {
             display: flex;
@@ -273,8 +317,8 @@
             <div class="tool-section">
                 <h3>Tamaño del Pincelito</h3>
                 <div class="size-section">
-                    <input type="range" id="brushSize" min="1" max="20" value="1">
-                    <div class="size-display">Tamaño: <span id="brushSizeValue">1</span></div>
+                    <input type="range" id="brushSize" min="1" max="20" value="5">
+                    <div class="size-display">Tamaño: <span id="brushSizeValue">5</span></div>
                 </div>
             </div>
             
@@ -284,6 +328,11 @@
                     <button class="action-btn" onclick="getCanvas()">🔄 Refrescar</button>
                     <button class="action-btn danger" onclick="clearCanvas()">🗑️ Borrar</button>
                 </div>
+                
+                <div class="webhook-section">
+                    <input type="url" id="webhookInput" placeholder="https://webhook.site/your-url" />
+                    <button id="webhookButton">🔗 Agregar Webhook</button>
+                </div>
             </div>
         </div>
     </div>
@@ -292,11 +341,13 @@
     <script>
         const canvas = document.getElementById('paintCanvas');
         const ctx = canvas.getContext('2d');
+        const status = document.getElementById('status');
         const colorPicker = document.getElementById('colorPicker');
         const brushSize = document.getElementById('brushSize');
         const brushSizeValue = document.getElementById('brushSizeValue');
         const brushPreview = document.getElementById('brushPreview');
-        const status = document.getElementById('status');
+        const webhookInput = document.getElementById('webhookInput');
+        const webhookButton = document.getElementById('webhookButton');
         
         // Scale factor to convert canvas pixels to grid coordinates
         const GRID_SIZE = 800;
@@ -308,10 +359,11 @@
         let lastX = 0;
         let lastY = 0;
         
-        // History for undo/redo
-        let history = [];
-        let historyStep = -1;
-        const MAX_HISTORY = 50;
+        // Batching system for performance
+        let pixelBatch = [];
+        let batchTimeout = null;
+        const BATCH_SIZE = 50;
+        const BATCH_DELAY = 16; // ~60fps
         
         // Connect to Paint AI server
         const socket = io();
@@ -343,7 +395,7 @@
             }
         }
         
-        // Brush size management
+        // Brush size and color management
         brushSize.addEventListener('input', (e) => {
             brushSizeValue.textContent = e.target.value;
             updateBrushPreview();
@@ -358,15 +410,69 @@
             brushPreview.style.backgroundColor = colorPicker.value;
         }
         
-        function saveState() {
-            historyStep++;
-            if (historyStep < history.length) {
-                history.length = historyStep;
+        // Webhook management
+        webhookButton.addEventListener('click', function() {
+            const webhookUrl = webhookInput.value.trim();
+            if (!webhookUrl) {
+                alert('Por favor ingresa una URL de webhook válida');
+                return;
             }
-            history.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-            if (history.length > MAX_HISTORY) {
-                history.shift();
-                historyStep--;
+            
+            if (!webhookUrl.startsWith('http://') && !webhookUrl.startsWith('https://')) {
+                alert('La URL debe comenzar con http:// o https://');
+                return;
+            }
+            
+            const body = { url: webhookUrl };
+            fetch('/webhook', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body)
+            })
+            .then(response => {
+                if (response.ok) {
+                    alert('Webhook agregado exitosamente!');
+                    webhookInput.value = '';
+                } else {
+                    alert('Error al agregar webhook');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error de conexión');
+            });
+        });
+        
+
+        
+        function addPixelToBatch(x, y, color) {
+            // Check if pixel already exists in batch to avoid duplicates
+            const existingIndex = pixelBatch.findIndex(p => p.x === x && p.y === y);
+            if (existingIndex !== -1) {
+                pixelBatch[existingIndex].pixel = color;
+            } else {
+                pixelBatch.push({ x, y, pixel: color });
+            }
+            
+            // Send batch if it reaches the size limit
+            if (pixelBatch.length >= BATCH_SIZE) {
+                sendPixelBatch();
+            } else if (!batchTimeout) {
+                // Set timeout to send batch after delay
+                batchTimeout = setTimeout(sendPixelBatch, BATCH_DELAY);
+            }
+        }
+        
+        function sendPixelBatch() {
+            if (pixelBatch.length > 0) {
+                socket.emit('draw_pixels_batch', pixelBatch);
+                pixelBatch = [];
+            }
+            if (batchTimeout) {
+                clearTimeout(batchTimeout);
+                batchTimeout = null;
             }
         }
         
@@ -378,7 +484,7 @@
             };
         }
         
-        function drawBrush(x, y, color, size = 1) {
+        function drawBrush(x, y, color, size = 5) {
             const radius = Math.floor(size / 2);
             for (let dx = -radius; dx <= radius; dx++) {
                 for (let dy = -radius; dy <= radius; dy++) {
@@ -386,67 +492,13 @@
                         const pixelX = x + dx;
                         const pixelY = y + dy;
                         if (pixelX >= 0 && pixelX < GRID_SIZE && pixelY >= 0 && pixelY < GRID_SIZE) {
-                            socket.emit('draw_pixel', {
-                                x: pixelX,
-                                y: pixelY,
-                                pixel: color
-                            });
+                            // Add to batch instead of sending immediately
+                            addPixelToBatch(pixelX, pixelY, color);
+                            // Draw locally for immediate feedback
+                            drawPixel(pixelX, pixelY, color);
                         }
                     }
                 }
-            }
-        }
-        
-        function getPixelColor(x, y) {
-            if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE) {
-                const imageData = ctx.getImageData(x * PIXEL_SIZE, y * PIXEL_SIZE, 1, 1);
-                const data = imageData.data;
-                return {
-                    r: data[0],
-                    g: data[1],
-                    b: data[2]
-                };
-            }
-            return { r: 255, g: 255, b: 255 };
-        }
-        
-        function floodFill(startX, startY, newColor) {
-            const targetColor = getPixelColor(startX, startY);
-            
-            // Don't fill if colors are the same
-            if (targetColor.r === newColor.r && targetColor.g === newColor.g && targetColor.b === newColor.b) {
-                return;
-            }
-            
-            const stack = [{x: startX, y: startY}];
-            const visited = new Set();
-            
-            while (stack.length > 0) {
-                const {x, y} = stack.pop();
-                const key = `${x},${y}`;
-                
-                if (visited.has(key) || x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE) {
-                    continue;
-                }
-                
-                const currentColor = getPixelColor(x, y);
-                if (currentColor.r !== targetColor.r || currentColor.g !== targetColor.g || currentColor.b !== targetColor.b) {
-                    continue;
-                }
-                
-                visited.add(key);
-                
-                socket.emit('draw_pixel', {
-                    x: x,
-                    y: y,
-                    pixel: newColor
-                });
-                
-                // Add adjacent pixels to stack
-                stack.push({x: x + 1, y: y});
-                stack.push({x: x - 1, y: y});
-                stack.push({x: x, y: y + 1});
-                stack.push({x: x, y: y - 1});
             }
         }
         
@@ -493,8 +545,13 @@
             if (data.canvas) {
                 // Full canvas update
                 renderFullCanvas(data.canvas);
+            } else if (data.pixels) {
+                // Batch pixel update
+                data.pixels.forEach(pixelData => {
+                    drawPixel(pixelData.x, pixelData.y, pixelData.pixel);
+                });
             } else if (data.x !== undefined && data.y !== undefined) {
-                // Single pixel update
+                // Single pixel update (for backwards compatibility)
                 drawPixel(data.x, data.y, data.pixel);
             }
         });
@@ -512,7 +569,6 @@
             isDrawing = true;
             lastX = coords.x;
             lastY = coords.y;
-            saveState();
             handleDraw(coords.x, coords.y);
         });
         
@@ -535,13 +591,14 @@
         
         canvas.addEventListener('mouseup', () => {
             isDrawing = false;
+            sendPixelBatch();
         });
         
         canvas.addEventListener('mouseleave', () => {
             isDrawing = false;
+            sendPixelBatch();
         });
         
-        // Single click/tap handler
         function handleDraw(x, y) {
             const color = currentTool === 'eraser' ? 
                 { r: 255, g: 255, b: 255 } : 
@@ -549,33 +606,6 @@
             
             drawBrush(x, y, color, parseInt(brushSize.value));
         }
-        
-        // Touch events for mobile support
-        canvas.addEventListener('touchstart', (event) => {
-            event.preventDefault();
-            const touch = event.touches[0];
-            const mouseEvent = new MouseEvent('mousedown', {
-                clientX: touch.clientX,
-                clientY: touch.clientY
-            });
-            canvas.dispatchEvent(mouseEvent);
-        });
-        
-        canvas.addEventListener('touchmove', (event) => {
-            event.preventDefault();
-            const touch = event.touches[0];
-            const mouseEvent = new MouseEvent('mousemove', {
-                clientX: touch.clientX,
-                clientY: touch.clientY
-            });
-            canvas.dispatchEvent(mouseEvent);
-        });
-        
-        canvas.addEventListener('touchend', (event) => {
-            event.preventDefault();
-            const mouseEvent = new MouseEvent('mouseup', {});
-            canvas.dispatchEvent(mouseEvent);
-        });
         
         // Helper functions
         function hexToRgb(hex) {
@@ -606,22 +636,12 @@
         
         function clearCanvas() {
             if (confirm('¿Está seguro que desea borrar todo el lienzo?')) {
-                saveState();
-                
                 // Clear locally first
                 ctx.fillStyle = 'white';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
-                // Send clear events for all pixels
-                for (let x = 0; x < GRID_SIZE; x++) {
-                    for (let y = 0; y < GRID_SIZE; y++) {
-                        socket.emit('draw_pixel', {
-                            x: x,
-                            y: y,
-                            pixel: { r: 255, g: 255, b: 255 }
-                        });
-                    }
-                }
+                // Send clear command instead of individual pixels
+                socket.emit('clear_canvas');
             }
         }
         
@@ -635,7 +655,6 @@
         
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        saveState();
     </script>
 </body>
 </html>
